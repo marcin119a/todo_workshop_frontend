@@ -94,7 +94,7 @@ function TaskModal({ task, categories, onSave, onClose }) {
   const [categoryId, setCategoryId] = useState(task?.category?.id ?? '')
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState(task?.tags ?? [])
-  const [dueDate, setDueDate] = useState(task?.due_date?.slice(0, 10) ?? '')
+  const dueDateRef = React.useRef(null)
   const [useAI, setUseAI] = useState(false)
   const [loading, setLoading] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
@@ -113,7 +113,7 @@ function TaskModal({ task, categories, onSave, onClose }) {
       const r = await fetch('/tasks/priority/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
-        body: JSON.stringify({ title, description, due_date: dueDate || null }),
+        body: JSON.stringify({ title, description, due_date: dueDateRef.current?.value || null }),
       })
       const data = await r.json()
       setPriority(data.priority)
@@ -151,7 +151,7 @@ function TaskModal({ task, categories, onSave, onClose }) {
         status,
         category_id: categoryId ? parseInt(categoryId) : null,
         tags,
-        due_date: dueDate || null,
+        due_date: dueDateRef.current?.value || null,
       }
       if (isEdit) {
         await onSave(task.id, payload, tags)
@@ -201,7 +201,7 @@ function TaskModal({ task, categories, onSave, onClose }) {
           </div>
           <div className="form-group">
             <label>Termin wykonania</label>
-            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+            <input type="date" ref={dueDateRef} defaultValue={task?.due_date?.slice(0, 10) ?? ''} />
           </div>
           <div className="form-group">
             <label>Kategoria</label>
@@ -338,11 +338,11 @@ function TaskCard({ task, onEdit, onDelete, onToggle }) {
   const date = new Date(task.created_at).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })
   const dueDateStatus = getDueDateStatus(task.due_date)
   const dueDateLabel = task.due_date
-    ? new Date(task.due_date).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short' })
+    ? new Date(task.due_date).toLocaleDateString('pl-PL', { day: 'numeric', month: 'short', year: 'numeric' })
     : null
 
   return (
-    <div className={`task-card ${task.status === 'done' ? 'done' : ''}`} onClick={() => onEdit(task)}>
+    <div className={`task-card ${task.status === 'done' ? 'done' : ''} ${dueDateStatus === 'overdue' ? 'overdue' : ''}`} onClick={() => onEdit(task)}>
       <div
         className={`task-check ${task.status === 'done' ? 'checked' : ''}`}
         onClick={e => { e.stopPropagation(); onToggle(task) }}
@@ -394,6 +394,7 @@ function Dashboard({ userEmail, onLogout }) {
         data = await api.getTasks({ ...filters, overdue: true })
       } else if (view === 'upcoming') {
         data = await api.getUpcomingTasks(7)
+        data = [...data].sort((a, b) => new Date(a.due_date) - new Date(b.due_date))
       } else {
         data = await api.getTasks(filters)
       }
@@ -556,8 +557,8 @@ function Dashboard({ userEmail, onLogout }) {
         {/* View filter */}
         <div className="view-filters">
           <button className={`view-chip ${view === 'all' ? 'active' : ''}`} onClick={() => setView('all')}>Wszystkie</button>
-          <button className={`view-chip ${view === 'overdue' ? 'active' : ''}`} onClick={() => setView('overdue')}>⚠ Przeterminowane</button>
-          <button className={`view-chip ${view === 'upcoming' ? 'active' : ''}`} onClick={() => setView('upcoming')}>⏰ Nadchodzące (7 dni)</button>
+          <button className={`view-chip ${view === 'overdue' ? 'active' : ''}`} data-filter="overdue" onClick={() => setView('overdue')}>⚠ Przeterminowane</button>
+          <button className={`view-chip ${view === 'upcoming' ? 'active' : ''}`} data-filter="upcoming" onClick={() => setView('upcoming')}>⏰ Nadchodzące (7 dni)</button>
         </div>
 
         {/* Toolbar */}
